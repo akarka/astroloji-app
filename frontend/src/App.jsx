@@ -24,6 +24,8 @@ function App() {
   const [editingPersonData, setEditingPersonData] = useState({});
   const [selectedPlanet, setSelectedPlanet] = useState("");
   const [selectedHouse, setSelectedHouse] = useState("");
+  const [selectedSign, setSelectedSign] = useState("");
+  const [selectedHousePlanet, setSelectedHousePlanet] = useState("");
 
   // Load saved calculations on component mount
   useEffect(() => {
@@ -172,9 +174,33 @@ function App() {
         houses: editingHouses,
       };
 
-      // Update local state
-      setBirthChart(updatedData);
-      setEditingResults(false);
+      // Find the current calculation in savedCalculations to get its ID
+      const currentCalculation = savedCalculations.find(
+        (calc) =>
+          calc.result_json?.person?.name === birthChart.person.name &&
+          calc.result_json?.person?.birth_date ===
+            birthChart.person.birth_date &&
+          calc.result_json?.person?.birth_time === birthChart.person.birth_time
+      );
+
+      if (currentCalculation) {
+        // Update in Supabase
+        await birthChartService.updateCalculation(
+          currentCalculation.id,
+          updatedData
+        );
+
+        // Reload saved calculations to get updated data
+        await loadSavedCalculations();
+
+        // Update local state
+        setBirthChart(updatedData);
+        setEditingResults(false);
+
+        alert("Sonuçlar başarıyla güncellendi!");
+      } else {
+        alert("Güncellenecek kayıt bulunamadı!");
+      }
     } catch (error) {
       console.error("Error updating results:", error);
       alert("Sonuçları güncellerken hata oluştu.");
@@ -198,9 +224,33 @@ function App() {
         person: editingPersonData,
       };
 
-      // Update local state
-      setBirthChart(updatedData);
-      setEditingPerson(false);
+      // Find the current calculation in savedCalculations to get its ID
+      const currentCalculation = savedCalculations.find(
+        (calc) =>
+          calc.result_json?.person?.name === birthChart.person.name &&
+          calc.result_json?.person?.birth_date ===
+            birthChart.person.birth_date &&
+          calc.result_json?.person?.birth_time === birthChart.person.birth_time
+      );
+
+      if (currentCalculation) {
+        // Update in Supabase
+        await birthChartService.updateCalculation(
+          currentCalculation.id,
+          updatedData
+        );
+
+        // Reload saved calculations to get updated data
+        await loadSavedCalculations();
+
+        // Update local state
+        setBirthChart(updatedData);
+        setEditingPerson(false);
+
+        alert("Kişi bilgileri başarıyla güncellendi!");
+      } else {
+        alert("Güncellenecek kayıt bulunamadı!");
+      }
     } catch (error) {
       console.error("Error updating person data:", error);
       alert("Kişi bilgilerini güncellerken hata oluştu.");
@@ -237,14 +287,14 @@ function App() {
   const getPlanetFilteredPeople = (planetName) => {
     return savedCalculations.filter((calc) =>
       calc.result_json?.planet_positions?.some(
-        (planet) => planet.planet_name === planetName
+        (planet) => planet.planet === planetName
       )
     );
   };
 
   const getHouseFilteredPeople = (houseNumber) => {
     return savedCalculations.filter((calc) =>
-      calc.result_json?.house_positions?.some(
+      calc.result_json?.houses?.some(
         (house) => house.house_number === parseInt(houseNumber)
       )
     );
@@ -252,22 +302,115 @@ function App() {
 
   const getAllPlanets = () => {
     const planets = new Set();
+    console.log("savedCalculations:", savedCalculations); // Debug log
+
+    // Eğer veritabanında veri yoksa, sabit gezegen listesi göster
+    if (savedCalculations.length === 0) {
+      return [
+        "Sun",
+        "Moon",
+        "Mercury",
+        "Venus",
+        "Mars",
+        "Jupiter",
+        "Saturn",
+        "Uranus",
+        "Neptune",
+        "Pluto",
+      ];
+    }
+
     savedCalculations.forEach((calc) => {
-      calc.result_json?.planet_positions?.forEach((planet) => {
-        planets.add(planet.planet_name);
-      });
+      console.log("calc.result_json:", calc.result_json); // Debug log
+      if (calc.result_json?.planet_positions) {
+        console.log(
+          "planet_positions found:",
+          calc.result_json.planet_positions
+        ); // Debug log
+        calc.result_json.planet_positions.forEach((planet) => {
+          console.log("planet:", planet); // Debug log
+          planets.add(planet.planet);
+        });
+      }
     });
-    return Array.from(planets).sort();
+    const result = Array.from(planets).sort();
+    console.log("All planets found:", result); // Debug log
+    return result;
   };
 
   const getAllHouses = () => {
     const houses = new Set();
     savedCalculations.forEach((calc) => {
-      calc.result_json?.house_positions?.forEach((house) => {
+      calc.result_json?.houses?.forEach((house) => {
         houses.add(house.house_number);
       });
     });
     return Array.from(houses).sort((a, b) => a - b);
+  };
+
+  // Yeni: Seçili gezegene sahip kişilerin burçlarını döndür
+  const getAllSignsForPlanet = (planetName) => {
+    const signs = new Set();
+    console.log("getAllSignsForPlanet called with planetName:", planetName); // Debug log
+
+    // Eğer veritabanında veri yoksa, sabit burç listesi göster
+    if (savedCalculations.length === 0) {
+      return [
+        "Aries",
+        "Taurus",
+        "Gemini",
+        "Cancer",
+        "Leo",
+        "Virgo",
+        "Libra",
+        "Scorpio",
+        "Sagittarius",
+        "Capricorn",
+        "Aquarius",
+        "Pisces",
+      ];
+    }
+
+    savedCalculations.forEach((calc) => {
+      if (calc.result_json?.planet_positions) {
+        calc.result_json.planet_positions.forEach((planet) => {
+          console.log(
+            "checking planet:",
+            planet.planet,
+            "against:",
+            planetName
+          ); // Debug log
+          if (!planetName || planet.planet === planetName) {
+            console.log("adding sign:", planet.sign); // Debug log
+            signs.add(planet.sign);
+          }
+        });
+      }
+    });
+    const result = Array.from(signs).sort();
+    console.log("All signs found:", result); // Debug log
+    return result;
+  };
+  // Yeni: Hem gezegen hem burç filtreli kişiler
+  const getPlanetSignFilteredPeople = (planetName, sign) => {
+    return savedCalculations.filter((calc) =>
+      calc.result_json?.planet_positions?.some(
+        (planet) =>
+          (!planetName || planet.planet === planetName) &&
+          (!sign || planet.sign === sign)
+      )
+    );
+  };
+
+  // Yeni: Hem ev hem gezegen filtreli kişiler
+  const getHousePlanetFilteredPeople = (houseNumber, planetName) => {
+    return savedCalculations.filter((calc) =>
+      calc.result_json?.planet_positions?.some(
+        (planet) =>
+          (!houseNumber || planet.house === parseInt(houseNumber)) &&
+          (!planetName || planet.planet === planetName)
+      )
+    );
   };
 
   // Table configurations
@@ -292,34 +435,31 @@ function App() {
   ];
 
   const databaseColumns = [
-    { key: "id", label: "ID", sortable: true },
     { key: "name", label: "Ad Soyad", sortable: true },
     { key: "birth_date", label: "Doğum Tarihi", sortable: true },
     { key: "birth_time", label: "Doğum Saati", sortable: true },
     { key: "birth_place", label: "Doğum Yeri", sortable: true },
-    { key: "planets_count", label: "Gezegen Sayısı", sortable: true },
-    { key: "created_at", label: "Oluşturulma Tarihi", sortable: true },
     { key: "actions", label: "İşlemler", sortable: false },
   ];
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 text-white">
-      <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto px-4 sm:px-6 py-4 sm:py-8">
         {/* Header */}
-        <header className="text-center mb-12">
-          <h1 className="text-5xl font-bold mb-4 bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
+        <header className="text-center mb-8 sm:mb-12">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-3 sm:mb-4 bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
             🪐 Astroloji App
           </h1>
-          <p className="text-xl text-gray-300">
+          <p className="text-lg sm:text-xl text-gray-300 px-2">
             Doğum haritanızı hesaplayın ve gezegen pozisyonlarınızı keşfedin
           </p>
 
           {/* Ana Sayfa Butonu */}
           {currentView !== "dashboard" && (
-            <div className="flex justify-center mt-6">
+            <div className="flex justify-center mt-4 sm:mt-6">
               <button
                 onClick={() => setCurrentView("dashboard")}
-                className="px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 rounded-lg font-semibold text-lg transition-all duration-300 transform hover:scale-105"
+                className="px-4 sm:px-6 py-2 sm:py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 rounded-lg font-semibold text-base sm:text-lg transition-all duration-300 transform hover:scale-105"
               >
                 🏠 Ana Sayfaya Dön
               </button>
@@ -330,25 +470,25 @@ function App() {
         {/* Main Content */}
         <div className="max-w-6xl mx-auto">
           {currentView === "dashboard" && (
-            <div className="p-6">
-              <h2 className="text-3xl font-bold text-center mb-8 text-white">
+            <div className="p-4 sm:p-6">
+              <h2 className="text-2xl sm:text-3xl font-bold text-center mb-6 sm:mb-8 text-white">
                 🪐 Astroloji Analiz Merkezi
               </h2>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
                 {/* Yeni İnsan Ekle */}
-                <div className="bg-gradient-to-br from-purple-600 to-blue-600 p-6 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105">
+                <div className="bg-gradient-to-br from-purple-600 to-blue-600 p-4 sm:p-6 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105">
                   <div className="text-center">
-                    <div className="text-4xl mb-4">👤</div>
-                    <h3 className="text-xl font-bold text-white mb-2">
+                    <div className="text-3xl sm:text-4xl mb-3 sm:mb-4">👤</div>
+                    <h3 className="text-lg sm:text-xl font-bold text-white mb-2">
                       Yeni İnsan Ekle
                     </h3>
-                    <p className="text-purple-100 mb-4">
+                    <p className="text-purple-100 mb-3 sm:mb-4 text-sm sm:text-base">
                       Yeni bir kişi için doğum haritası hesapla
                     </p>
                     <button
                       onClick={() => setCurrentView("calculator")}
-                      className="bg-white text-purple-600 px-6 py-3 rounded-lg font-semibold hover:bg-purple-50 transition-colors"
+                      className="bg-white text-purple-600 px-4 sm:px-6 py-2 sm:py-3 rounded-lg font-semibold hover:bg-purple-50 transition-colors text-sm sm:text-base"
                     >
                       Hesaplamaya Başla
                     </button>
@@ -356,18 +496,18 @@ function App() {
                 </div>
 
                 {/* İnsanların Gezegenleri */}
-                <div className="bg-gradient-to-br from-green-600 to-teal-600 p-6 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105">
+                <div className="bg-gradient-to-br from-green-600 to-teal-600 p-4 sm:p-6 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105">
                   <div className="text-center">
-                    <div className="text-4xl mb-4">👥</div>
-                    <h3 className="text-xl font-bold text-white mb-2">
+                    <div className="text-3xl sm:text-4xl mb-3 sm:mb-4">👥</div>
+                    <h3 className="text-lg sm:text-xl font-bold text-white mb-2">
                       İnsanların Gezegenleri
                     </h3>
-                    <p className="text-green-100 mb-4">
+                    <p className="text-green-100 mb-3 sm:mb-4 text-sm sm:text-base">
                       Kişilerin gezegen pozisyonlarını görüntüle
                     </p>
                     <button
                       onClick={() => setCurrentView("people")}
-                      className="bg-white text-green-600 px-6 py-3 rounded-lg font-semibold hover:bg-green-50 transition-colors"
+                      className="bg-white text-green-600 px-4 sm:px-6 py-2 sm:py-3 rounded-lg font-semibold hover:bg-green-50 transition-colors text-sm sm:text-base"
                     >
                       Kişileri Görüntüle
                     </button>
@@ -375,18 +515,18 @@ function App() {
                 </div>
 
                 {/* Gezegenlerin İnsanları */}
-                <div className="bg-gradient-to-br from-orange-600 to-red-600 p-6 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105">
+                <div className="bg-gradient-to-br from-orange-600 to-red-600 p-4 sm:p-6 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105">
                   <div className="text-center">
-                    <div className="text-4xl mb-4">🪐</div>
-                    <h3 className="text-xl font-bold text-white mb-2">
+                    <div className="text-3xl sm:text-4xl mb-3 sm:mb-4">🪐</div>
+                    <h3 className="text-lg sm:text-xl font-bold text-white mb-2">
                       Gezegenlerin İnsanları
                     </h3>
-                    <p className="text-orange-100 mb-4">
+                    <p className="text-orange-100 mb-3 sm:mb-4 text-sm sm:text-base">
                       Aynı gezegene sahip kişileri filtrele
                     </p>
                     <button
                       onClick={() => setCurrentView("planets")}
-                      className="bg-white text-orange-600 px-6 py-3 rounded-lg font-semibold hover:bg-orange-50 transition-colors"
+                      className="bg-white text-orange-600 px-4 sm:px-6 py-2 sm:py-3 rounded-lg font-semibold hover:bg-orange-50 transition-colors text-sm sm:text-base"
                     >
                       Gezegen Analizi
                     </button>
@@ -394,18 +534,18 @@ function App() {
                 </div>
 
                 {/* Evlerin İnsanları */}
-                <div className="bg-gradient-to-br from-indigo-600 to-purple-600 p-6 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105">
+                <div className="bg-gradient-to-br from-indigo-600 to-purple-600 p-4 sm:p-6 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105">
                   <div className="text-center">
-                    <div className="text-4xl mb-4">🏠</div>
-                    <h3 className="text-xl font-bold text-white mb-2">
+                    <div className="text-3xl sm:text-4xl mb-3 sm:mb-4">🏠</div>
+                    <h3 className="text-lg sm:text-xl font-bold text-white mb-2">
                       Evlerin İnsanları
                     </h3>
-                    <p className="text-indigo-100 mb-4">
+                    <p className="text-indigo-100 mb-3 sm:mb-4 text-sm sm:text-base">
                       Aynı eve sahip kişileri filtrele
                     </p>
                     <button
                       onClick={() => setCurrentView("houses")}
-                      className="bg-white text-indigo-600 px-6 py-3 rounded-lg font-semibold hover:bg-indigo-50 transition-colors"
+                      className="bg-white text-indigo-600 px-4 sm:px-6 py-2 sm:py-3 rounded-lg font-semibold hover:bg-indigo-50 transition-colors text-sm sm:text-base"
                     >
                       Ev Analizi
                     </button>
@@ -414,20 +554,30 @@ function App() {
               </div>
 
               {/* İstatistikler */}
-              <div className="mt-12 grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="bg-white/10 backdrop-blur-sm p-6 rounded-xl text-center">
-                  <div className="text-2xl font-bold text-white mb-2">
+              <div className="mt-8 sm:mt-12 grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
+                <div className="bg-white/10 backdrop-blur-sm p-4 sm:p-6 rounded-xl text-center">
+                  <div className="text-xl sm:text-2xl font-bold text-white mb-2">
                     {savedCalculations.length}
                   </div>
-                  <div className="text-gray-300">Toplam Kişi</div>
+                  <div className="text-gray-300 text-sm sm:text-base">
+                    Toplam Kişi
+                  </div>
                 </div>
-                <div className="bg-white/10 backdrop-blur-sm p-6 rounded-xl text-center">
-                  <div className="text-2xl font-bold text-white mb-2">12</div>
-                  <div className="text-gray-300">Gezegen Pozisyonu</div>
+                <div className="bg-white/10 backdrop-blur-sm p-4 sm:p-6 rounded-xl text-center">
+                  <div className="text-xl sm:text-2xl font-bold text-white mb-2">
+                    12
+                  </div>
+                  <div className="text-gray-300 text-sm sm:text-base">
+                    Gezegen Pozisyonu
+                  </div>
                 </div>
-                <div className="bg-white/10 backdrop-blur-sm p-6 rounded-xl text-center">
-                  <div className="text-2xl font-bold text-white mb-2">12</div>
-                  <div className="text-gray-300">Ev Pozisyonu</div>
+                <div className="bg-white/10 backdrop-blur-sm p-4 sm:p-6 rounded-xl text-center">
+                  <div className="text-xl sm:text-2xl font-bold text-white mb-2">
+                    12
+                  </div>
+                  <div className="text-gray-300 text-sm sm:text-base">
+                    Ev Pozisyonu
+                  </div>
                 </div>
               </div>
             </div>
@@ -436,13 +586,16 @@ function App() {
           {currentView === "calculator" && (
             <>
               {/* Birth Chart Form */}
-              <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-8 mb-8 border border-white/20">
-                <h2 className="text-2xl font-semibold mb-6 text-center">
+              <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-4 sm:p-6 md:p-8 mb-6 sm:mb-8 border border-white/20">
+                <h2 className="text-xl sm:text-2xl font-semibold mb-4 sm:mb-6 text-center">
                   Doğum Bilgileri
                 </h2>
 
-                <form onSubmit={handleSubmit} className="space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <form
+                  onSubmit={handleSubmit}
+                  className="space-y-4 sm:space-y-6"
+                >
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
                     <InputField
                       label="Ad Soyad"
                       type="text"
@@ -490,7 +643,7 @@ function App() {
                     <button
                       type="submit"
                       disabled={loading}
-                      className="px-8 py-4 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 rounded-lg font-semibold text-lg transition-all duration-300 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="px-6 sm:px-8 py-3 sm:py-4 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 rounded-lg font-semibold text-base sm:text-lg transition-all duration-300 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed w-full sm:w-auto"
                     >
                       {loading
                         ? "🔄 Hesaplanıyor..."
@@ -504,25 +657,33 @@ function App() {
 
           {currentView === "results" && birthChart && (
             /* Results View */
-            <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-8 border border-white/20">
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-2xl font-semibold">
+            <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-4 sm:p-6 md:p-8 border border-white/20">
+              {/* Placeholder Chart Görseli */}
+              <div className="flex justify-center mb-6">
+                <img
+                  src="https://www.astro-seek.com/birth-chart/horoscope-chart.png"
+                  alt="Doğum Haritası Placeholder"
+                  className="w-full max-w-xs sm:max-w-md md:max-w-lg rounded-lg shadow-lg border border-white/20 bg-white/10"
+                />
+              </div>
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 sm:mb-6 gap-4">
+                <h2 className="text-xl sm:text-2xl font-semibold">
                   📊 Doğum Haritası Sonuçları
                 </h2>
-                <div className="flex gap-2">
+                <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
                   {editingResults ? (
                     <>
                       <button
                         onClick={saveResultsEdit}
                         disabled={loading}
-                        className="px-4 py-2 bg-green-600 hover:bg-green-700 rounded-lg text-sm"
+                        className="px-3 sm:px-4 py-2 bg-green-600 hover:bg-green-700 rounded-lg text-sm w-full sm:w-auto"
                       >
                         {loading ? "🔄 Kaydediliyor..." : "💾 Kaydet"}
                       </button>
                       <button
                         onClick={cancelResultsEdit}
                         disabled={loading}
-                        className="px-4 py-2 bg-gray-600 hover:bg-gray-700 rounded-lg text-sm"
+                        className="px-3 sm:px-4 py-2 bg-gray-600 hover:bg-gray-700 rounded-lg text-sm w-full sm:w-auto"
                       >
                         ❌ İptal
                       </button>
@@ -532,14 +693,14 @@ function App() {
                       <button
                         onClick={savePersonEdit}
                         disabled={loading}
-                        className="px-4 py-2 bg-green-600 hover:bg-green-700 rounded-lg text-sm"
+                        className="px-3 sm:px-4 py-2 bg-green-600 hover:bg-green-700 rounded-lg text-sm w-full sm:w-auto"
                       >
                         {loading ? "🔄 Kaydediliyor..." : "💾 Kaydet"}
                       </button>
                       <button
                         onClick={cancelPersonEdit}
                         disabled={loading}
-                        className="px-4 py-2 bg-gray-600 hover:bg-gray-700 rounded-lg text-sm"
+                        className="px-3 sm:px-4 py-2 bg-gray-600 hover:bg-gray-700 rounded-lg text-sm w-full sm:w-auto"
                       >
                         ❌ İptal
                       </button>
@@ -548,19 +709,19 @@ function App() {
                     <>
                       <button
                         onClick={startEditingResults}
-                        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm"
+                        className="px-3 sm:px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm w-full sm:w-auto"
                       >
                         ✏️ Sonuçları Düzenle
                       </button>
                       <button
                         onClick={startEditingPerson}
-                        className="px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded-lg text-sm"
+                        className="px-3 sm:px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded-lg text-sm w-full sm:w-auto"
                       >
                         👤 Kişi Bilgilerini Düzenle
                       </button>
                       <button
                         onClick={() => setCurrentView("calculator")}
-                        className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 rounded-lg text-sm"
+                        className="px-3 sm:px-4 py-2 bg-indigo-600 hover:bg-indigo-700 rounded-lg text-sm w-full sm:w-auto"
                       >
                         🆕 Yeni Hesaplama
                       </button>
@@ -570,12 +731,12 @@ function App() {
               </div>
 
               {/* Person Info */}
-              <div className="mb-8 p-6 bg-white/5 rounded-lg">
-                <h3 className="text-lg font-semibold mb-4">
+              <div className="mb-6 sm:mb-8 p-4 sm:p-6 bg-white/5 rounded-lg">
+                <h3 className="text-lg font-semibold mb-3 sm:mb-4">
                   👤 Kişi Bilgileri
                 </h3>
                 {editingPerson ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
                     <div>
                       <label className="block text-sm font-medium text-white mb-1">
                         Ad Soyad
@@ -630,7 +791,7 @@ function App() {
                     </div>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 text-sm">
                     <div>
                       <strong>Ad:</strong> {birthChart.person.name}
                     </div>
@@ -651,17 +812,17 @@ function App() {
               </div>
 
               {/* Planet Positions Table */}
-              <div className="mb-8">
-                <h3 className="text-lg font-semibold mb-4">
+              <div className="mb-6 sm:mb-8">
+                <h3 className="text-lg font-semibold mb-3 sm:mb-4">
                   🪐 Gezegen Pozisyonları
                 </h3>
-                <div className="bg-white/5 rounded-lg p-4">
+                <div className="bg-white/5 rounded-lg p-3 sm:p-4">
                   {editingResults ? (
                     <div className="space-y-2">
                       {editingPlanets.map((planet, index) => (
                         <div
                           key={planet.planet}
-                          className="grid grid-cols-4 gap-4 p-3 bg-white/5 rounded-lg"
+                          className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2 sm:gap-4 p-3 bg-white/5 rounded-lg"
                         >
                           <div className="text-white font-medium">
                             {planet.planet}
@@ -803,16 +964,16 @@ function App() {
 
               {/* Houses Table */}
               <div>
-                <h3 className="text-lg font-semibold mb-4">
+                <h3 className="text-lg font-semibold mb-3 sm:mb-4">
                   🏠 Ev Pozisyonları
                 </h3>
-                <div className="bg-white/5 rounded-lg p-4">
+                <div className="bg-white/5 rounded-lg p-3 sm:p-4">
                   {editingResults ? (
                     <div className="space-y-2">
                       {editingHouses.map((house, index) => (
                         <div
                           key={house.house_number}
-                          className="grid grid-cols-3 gap-4 p-3 bg-white/5 rounded-lg"
+                          className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-4 p-3 bg-white/5 rounded-lg"
                         >
                           <div className="text-white font-medium">
                             {house.house_number}. Ev
@@ -957,19 +1118,19 @@ function App() {
 
           {currentView === "history" && (
             /* History View */
-            <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-8 border border-white/20">
-              <h2 className="text-2xl font-semibold mb-6 text-center">
+            <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-4 sm:p-6 md:p-8 border border-white/20">
+              <h2 className="text-xl sm:text-2xl font-semibold mb-4 sm:mb-6 text-center">
                 📚 Hesaplama Geçmişi
               </h2>
 
               {savedCalculations.length === 0 ? (
-                <div className="text-center py-8">
+                <div className="text-center py-6 sm:py-8">
                   <p className="text-gray-300">
                     Henüz kaydedilmiş hesaplama bulunmuyor.
                   </p>
                 </div>
               ) : (
-                <div className="bg-white/5 rounded-lg p-4">
+                <div className="bg-white/5 rounded-lg p-3 sm:p-4">
                   <TableMaster
                     columns={historyColumns}
                     data={savedCalculations.map((calc) => ({
@@ -995,16 +1156,16 @@ function App() {
                           : "N/A"}
                       </td>,
                       <td key="actions" className="p-2 border">
-                        <div className="flex gap-2 justify-center">
+                        <div className="flex flex-col sm:flex-row gap-1 sm:gap-2 justify-center">
                           <button
                             onClick={() => viewCalculation(calculation)}
-                            className="px-3 py-1 bg-blue-600 hover:bg-blue-700 rounded text-sm"
+                            className="px-2 sm:px-3 py-1 bg-blue-600 hover:bg-blue-700 rounded text-xs sm:text-sm"
                           >
                             👁️ Görüntüle
                           </button>
                           <button
                             onClick={() => deleteCalculation(calculation.id)}
-                            className="px-3 py-1 bg-red-600 hover:bg-red-700 rounded text-sm"
+                            className="px-2 sm:px-3 py-1 bg-red-600 hover:bg-red-700 rounded text-xs sm:text-sm"
                           >
                             🗑️ Sil
                           </button>
@@ -1019,30 +1180,111 @@ function App() {
 
           {currentView === "people" && (
             /* People View */
-            <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-8 border border-white/20">
-              <h2 className="text-2xl font-semibold mb-6 text-center">
+            <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-4 sm:p-6 md:p-8 border border-white/20">
+              <h2 className="text-xl sm:text-2xl font-semibold mb-4 sm:mb-6 text-center">
                 👥 İnsanların Gezegenleri
               </h2>
 
               {savedCalculations.length === 0 ? (
-                <div className="text-center py-8">
+                <div className="text-center py-6 sm:py-8">
                   <p className="text-gray-300">
                     Henüz kayıtlı kişi bulunmuyor.
                   </p>
                 </div>
               ) : (
-                <div className="bg-white/5 rounded-lg p-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                  {savedCalculations.map((record) => (
+                    <button
+                      key={record.id}
+                      onClick={() => loadCalculation(record)}
+                      className="w-full bg-gradient-to-br from-purple-700 to-blue-700 hover:from-purple-800 hover:to-blue-800 text-white rounded-xl shadow-lg p-6 flex flex-col items-center gap-2 transition-all duration-200 hover:scale-105 focus:outline-none focus:ring-2 focus:ring-purple-400"
+                    >
+                      <div className="text-3xl mb-2">👤</div>
+                      <div className="font-bold text-lg mb-1">
+                        {record.result_json?.person?.name || "Bilinmiyor"}
+                      </div>
+                      <div className="text-sm text-purple-200">
+                        {record.result_json?.person?.birth_date || "N/A"}
+                      </div>
+                      <div className="text-sm text-purple-200">
+                        {record.result_json?.person?.birth_place || "N/A"}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {currentView === "planets" && (
+            /* Planets Analysis View */
+            <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-8 border border-white/20">
+              <h2 className="text-2xl font-semibold mb-6 text-center">
+                🪐 Gezegenlerin İnsanları
+              </h2>
+              {/* Gezegen ve Burç Seçimi */}
+              <div className="mb-6 p-4 bg-white/5 rounded-lg flex flex-col md:flex-row gap-4 items-center">
+                <div className="flex-1">
+                  <SelectField
+                    label="Gezegen Seçin:"
+                    name="planet"
+                    value={selectedPlanet}
+                    onChange={(e) => {
+                      setSelectedPlanet(e.target.value);
+                      setSelectedSign(""); // gezegen değişince burç sıfırlansın
+                    }}
+                    options={[
+                      { id: "", label: "Tüm Gezegenler" },
+                      ...getAllPlanets().map((planet) => ({
+                        id: planet,
+                        label: planet,
+                      })),
+                    ]}
+                  />
+                </div>
+                <div className="flex-1">
+                  <SelectField
+                    label="Burç Seçin:"
+                    name="sign"
+                    value={selectedSign}
+                    onChange={(e) => setSelectedSign(e.target.value)}
+                    options={[
+                      { id: "", label: "Tüm Burçlar" },
+                      ...getAllSignsForPlanet(selectedPlanet).map((sign) => ({
+                        id: sign,
+                        label: sign,
+                      })),
+                    ]}
+                  />
+                </div>
+              </div>
+              {/* Filtrelenmiş Kişiler */}
+              <div className="bg-white/5 rounded-lg p-4">
+                <h3 className="text-lg font-semibold mb-4 text-center">
+                  {selectedPlanet || selectedSign
+                    ? `${selectedPlanet ? selectedPlanet + " " : ""}${
+                        selectedSign ? selectedSign + " burcuna sahip " : ""
+                      }kişiler`
+                    : "Tüm Kişiler"}
+                </h3>
+                {savedCalculations.length === 0 ? (
+                  <div className="text-center py-8">
+                    <p className="text-gray-300">
+                      Henüz kayıtlı kişi bulunmuyor.
+                    </p>
+                  </div>
+                ) : (
                   <TableMaster
                     columns={databaseColumns}
-                    data={savedCalculations}
+                    data={getPlanetSignFilteredPeople(
+                      selectedPlanet,
+                      selectedSign
+                    )}
                     keyField="id"
                     sortable={true}
                     pagination={true}
                     pageSize={5}
                     renderRow={(record) => [
-                      <td key="id" className="p-2 border text-white">
-                        {record.id?.slice(0, 8) || "N/A"}...
-                      </td>,
                       <td key="name" className="p-2 border text-white">
                         {record.result_json?.person?.name || "Bilinmiyor"}
                       </td>,
@@ -1054,17 +1296,6 @@ function App() {
                       </td>,
                       <td key="birth_place" className="p-2 border text-white">
                         {record.result_json?.person?.birth_place || "N/A"}
-                      </td>,
-                      <td
-                        key="planets_count"
-                        className="p-2 border text-purple-300"
-                      >
-                        {record.result_json?.planet_positions?.length || 0}
-                      </td>,
-                      <td key="created_at" className="p-2 border text-white">
-                        {record.created_at
-                          ? new Date(record.created_at).toLocaleString("tr-TR")
-                          : "N/A"}
                       </td>,
                       <td key="actions" className="p-2 border">
                         <div className="flex gap-2 justify-center">
@@ -1085,156 +1316,6 @@ function App() {
                       </td>,
                     ]}
                   />
-                </div>
-              )}
-            </div>
-          )}
-
-          {currentView === "planets" && (
-            /* Planets Analysis View */
-            <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-8 border border-white/20">
-              <h2 className="text-2xl font-semibold mb-6 text-center">
-                🪐 Gezegenlerin İnsanları
-              </h2>
-
-              {/* Gezegen Seçimi */}
-              <div className="mb-6 p-4 bg-white/5 rounded-lg">
-                <label className="block text-sm font-medium text-white mb-2">
-                  Gezegen Seçin:
-                </label>
-                <select
-                  value={selectedPlanet}
-                  onChange={(e) => setSelectedPlanet(e.target.value)}
-                  className="w-full bg-gray-800 border border-white/20 text-white rounded px-3 py-2"
-                >
-                  <option value="">Tüm Gezegenler</option>
-                  {getAllPlanets().map((planet) => (
-                    <option key={planet} value={planet}>
-                      {planet}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Filtrelenmiş Kişiler */}
-              <div className="bg-white/5 rounded-lg p-4">
-                <h3 className="text-lg font-semibold mb-4 text-center">
-                  {selectedPlanet
-                    ? `${selectedPlanet} Gezegenine Sahip Kişiler`
-                    : "Tüm Kişiler"}
-                </h3>
-
-                {savedCalculations.length === 0 ? (
-                  <div className="text-center py-8">
-                    <p className="text-gray-300">
-                      Henüz kayıtlı kişi bulunmuyor.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {(selectedPlanet
-                      ? getPlanetFilteredPeople(selectedPlanet)
-                      : savedCalculations
-                    ).map((record) => (
-                      <div
-                        key={record.id}
-                        className="bg-white/10 p-4 rounded-lg border border-white/20"
-                      >
-                        <div className="flex justify-between items-start">
-                          <div className="flex-1">
-                            <h4 className="text-lg font-semibold text-white mb-2">
-                              {record.result_json?.person?.name || "Bilinmiyor"}
-                            </h4>
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                              <div>
-                                <span className="text-gray-400">
-                                  Doğum Tarihi:
-                                </span>
-                                <div className="text-white">
-                                  {record.result_json?.person?.birth_date ||
-                                    "N/A"}
-                                </div>
-                              </div>
-                              <div>
-                                <span className="text-gray-400">
-                                  Doğum Saati:
-                                </span>
-                                <div className="text-white">
-                                  {record.result_json?.person?.birth_time ||
-                                    "N/A"}
-                                </div>
-                              </div>
-                              <div>
-                                <span className="text-gray-400">
-                                  Doğum Yeri:
-                                </span>
-                                <div className="text-white">
-                                  {record.result_json?.person?.birth_place ||
-                                    "N/A"}
-                                </div>
-                              </div>
-                              <div>
-                                <span className="text-gray-400">
-                                  Gezegen Sayısı:
-                                </span>
-                                <div className="text-purple-300">
-                                  {record.result_json?.planet_positions
-                                    ?.length || 0}
-                                </div>
-                              </div>
-                            </div>
-
-                            {/* Seçili gezegenin pozisyonu */}
-                            {selectedPlanet &&
-                              record.result_json?.planet_positions && (
-                                <div className="mt-3 p-3 bg-purple-900/30 rounded-lg">
-                                  <h5 className="text-purple-300 font-semibold mb-2">
-                                    {selectedPlanet} Pozisyonu:
-                                  </h5>
-                                  {record.result_json.planet_positions
-                                    .filter(
-                                      (planet) =>
-                                        planet.planet_name === selectedPlanet
-                                    )
-                                    .map((planet, index) => (
-                                      <div key={index} className="text-sm">
-                                        <span className="text-gray-400">
-                                          Burç:
-                                        </span>{" "}
-                                        {planet.sign} |
-                                        <span className="text-gray-400 ml-2">
-                                          Derece:
-                                        </span>{" "}
-                                        {planet.degree}° |
-                                        <span className="text-gray-400 ml-2">
-                                          Ev:
-                                        </span>{" "}
-                                        {planet.house_number}. Ev
-                                      </div>
-                                    ))}
-                                </div>
-                              )}
-                          </div>
-
-                          <div className="flex gap-2 ml-4">
-                            <button
-                              onClick={() => loadCalculation(record)}
-                              className="px-3 py-1 bg-blue-600 hover:bg-blue-700 rounded text-sm"
-                              disabled={!record.result_json?.person}
-                            >
-                              👁️ Detay
-                            </button>
-                            <button
-                              onClick={() => deleteCalculation(record.id)}
-                              className="px-3 py-1 bg-red-600 hover:bg-red-700 rounded text-sm"
-                            >
-                              🗑️ Sil
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
                 )}
               </div>
             </div>
@@ -1247,30 +1328,52 @@ function App() {
                 🏠 Evlerin İnsanları
               </h2>
 
-              {/* Ev Seçimi */}
-              <div className="mb-6 p-4 bg-white/5 rounded-lg">
-                <label className="block text-sm font-medium text-white mb-2">
-                  Ev Seçin:
-                </label>
-                <select
-                  value={selectedHouse}
-                  onChange={(e) => setSelectedHouse(e.target.value)}
-                  className="w-full bg-gray-800 border border-white/20 text-white rounded px-3 py-2"
-                >
-                  <option value="">Tüm Evler</option>
-                  {getAllHouses().map((house) => (
-                    <option key={house} value={house}>
-                      {house}. Ev
-                    </option>
-                  ))}
-                </select>
+              {/* Ev ve Gezegen Seçimi */}
+              <div className="mb-6 p-4 bg-white/5 rounded-lg flex flex-col md:flex-row gap-4 items-center">
+                <div className="flex-1">
+                  <SelectField
+                    label="Ev Seçin:"
+                    name="house"
+                    value={selectedHouse}
+                    onChange={(e) => {
+                      setSelectedHouse(e.target.value);
+                      setSelectedHousePlanet(""); // ev değişince gezegen sıfırlansın
+                    }}
+                    options={[
+                      { id: "", label: "Tüm Evler" },
+                      ...getAllHouses().map((house) => ({
+                        id: house.toString(),
+                        label: `${house}. Ev`,
+                      })),
+                    ]}
+                  />
+                </div>
+                <div className="flex-1">
+                  <SelectField
+                    label="Gezegen Seçin:"
+                    name="housePlanet"
+                    value={selectedHousePlanet}
+                    onChange={(e) => setSelectedHousePlanet(e.target.value)}
+                    options={[
+                      { id: "", label: "Tüm Gezegenler" },
+                      ...getAllPlanets().map((planet) => ({
+                        id: planet,
+                        label: planet,
+                      })),
+                    ]}
+                  />
+                </div>
               </div>
 
               {/* Filtrelenmiş Kişiler */}
               <div className="bg-white/5 rounded-lg p-4">
                 <h3 className="text-lg font-semibold mb-4 text-center">
-                  {selectedHouse
-                    ? `${selectedHouse}. Eve Sahip Kişiler`
+                  {selectedHouse || selectedHousePlanet
+                    ? `${selectedHouse ? selectedHouse + ". evde " : ""}${
+                        selectedHousePlanet
+                          ? selectedHousePlanet + " gezegenine sahip "
+                          : ""
+                      }kişiler`
                     : "Tüm Kişiler"}
                 </h3>
 
@@ -1282,9 +1385,9 @@ function App() {
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    {(selectedHouse
-                      ? getHouseFilteredPeople(selectedHouse)
-                      : savedCalculations
+                    {getHousePlanetFilteredPeople(
+                      selectedHouse,
+                      selectedHousePlanet
                     ).map((record) => (
                       <div
                         key={record.id}
@@ -1328,39 +1431,91 @@ function App() {
                                   Ev Sayısı:
                                 </span>
                                 <div className="text-indigo-300">
-                                  {record.result_json?.house_positions
-                                    ?.length || 0}
+                                  {record.result_json?.houses?.length || 0}
                                 </div>
                               </div>
                             </div>
 
-                            {/* Seçili evin pozisyonu */}
+                            {/* Seçili evdeki gezegenler */}
                             {selectedHouse &&
-                              record.result_json?.house_positions && (
+                              record.result_json?.planet_positions && (
                                 <div className="mt-3 p-3 bg-indigo-900/30 rounded-lg">
                                   <h5 className="text-indigo-300 font-semibold mb-2">
-                                    {selectedHouse}. Ev Pozisyonu:
+                                    {selectedHouse}. Evdeki Gezegenler:
                                   </h5>
-                                  {record.result_json.house_positions
+                                  {record.result_json.planet_positions
                                     .filter(
-                                      (house) =>
-                                        house.house_number ===
-                                        parseInt(selectedHouse)
+                                      (planet) =>
+                                        planet.house === parseInt(selectedHouse)
                                     )
-                                    .map((house, index) => (
-                                      <div key={index} className="text-sm">
-                                        <span className="text-gray-400">
+                                    .map((planet, index) => (
+                                      <div
+                                        key={index}
+                                        className={`text-sm mb-1 ${
+                                          selectedHousePlanet &&
+                                          planet.planet === selectedHousePlanet
+                                            ? "bg-yellow-900/50 p-2 rounded"
+                                            : ""
+                                        }`}
+                                      >
+                                        <span className="text-yellow-300">
+                                          🪐 {planet.planet}
+                                        </span>{" "}
+                                        |
+                                        <span className="text-gray-400 ml-2">
                                           Burç:
                                         </span>{" "}
-                                        {house.sign} |
+                                        {planet.sign} |
                                         <span className="text-gray-400 ml-2">
                                           Derece:
                                         </span>{" "}
-                                        {house.degree}°
+                                        {planet.degree}°
+                                        {selectedHousePlanet &&
+                                          planet.planet ===
+                                            selectedHousePlanet && (
+                                            <span className="ml-2 text-green-300">
+                                              ✓ Seçili
+                                            </span>
+                                          )}
                                       </div>
                                     ))}
+                                  {record.result_json.planet_positions.filter(
+                                    (planet) =>
+                                      planet.house === parseInt(selectedHouse)
+                                  ).length === 0 && (
+                                    <div className="text-sm text-gray-400">
+                                      Bu evde gezegen bulunmuyor.
+                                    </div>
+                                  )}
                                 </div>
                               )}
+
+                            {/* Seçili evin pozisyonu */}
+                            {selectedHouse && record.result_json?.houses && (
+                              <div className="mt-3 p-3 bg-blue-900/30 rounded-lg">
+                                <h5 className="text-blue-300 font-semibold mb-2">
+                                  {selectedHouse}. Ev Pozisyonu:
+                                </h5>
+                                {record.result_json.houses
+                                  .filter(
+                                    (house) =>
+                                      house.house_number ===
+                                      parseInt(selectedHouse)
+                                  )
+                                  .map((house, index) => (
+                                    <div key={index} className="text-sm">
+                                      <span className="text-gray-400">
+                                        Burç:
+                                      </span>{" "}
+                                      {house.sign} |
+                                      <span className="text-gray-400 ml-2">
+                                        Derece:
+                                      </span>{" "}
+                                      {house.degree}°
+                                    </div>
+                                  ))}
+                              </div>
+                            )}
                           </div>
 
                           <div className="flex gap-2 ml-4">
@@ -1390,7 +1545,7 @@ function App() {
 
         {/* Footer */}
         <footer className="text-center mt-12 text-gray-400">
-          <p>© 2025 Astroloji App - Microservice Tabanlı Astroloji Sistemi</p>
+          <p>© 2025 Astroloji App - Kadir Akar</p>
         </footer>
       </div>
     </div>
