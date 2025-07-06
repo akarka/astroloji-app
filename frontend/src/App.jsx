@@ -19,6 +19,7 @@ function App() {
 
   // Load saved calculations on component mount
   useEffect(() => {
+    console.log("App component mounted"); // Debug log
     loadSavedCalculations();
   }, []);
 
@@ -33,6 +34,7 @@ function App() {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
+    console.log("Input changed:", name, value); // Debug log
     setFormData((prev) => ({
       ...prev,
       [name]: value,
