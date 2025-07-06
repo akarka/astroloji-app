@@ -1,0 +1,39 @@
+version: "3.8"
+
+services:
+  gateway:
+    build: ./gateway
+    ports:
+      - "4000:4000"
+    depends_on:
+      - astrology-api-adapter
+    environment:
+      - PORT=4000
+
+  astrology-api-adapter:
+    build: ./services/astrology-api-adapter
+    ports:
+      - "5001:5001"
+    environment:
+      - PORT=5001
+
+  astronomia-calculator:
+    build: ./services/astronomia-calculator
+    ports:
+      - "5002:5002"
+    environment:
+      - PORT=5002
+
+  swiss-ephemeris-calculator:
+    build: ./services/swiss-ephemeris-calculator
+    ports:
+      - "5003:5003"
+    environment:
+      - PORT=5003
+
+  scraper-adapter:
+    build: ./services/scraper-adapter
+    ports:
+      - "5004:5004"
+    environment:
+      - PORT=5004
