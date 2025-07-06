@@ -1,6 +1,7 @@
 function InputField({
   label,
   type = "text",
+  name,
   value,
   onChange,
   placeholder,
@@ -19,7 +20,8 @@ function InputField({
       )}
       <input
         type={type}
-        value={value}
+        name={name}
+        value={value || ""}
         onChange={onChange}
         placeholder={placeholder || label}
         required={required}

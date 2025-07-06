@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo } from "react";
 
 function TableMaster({
   columns = [],
@@ -9,7 +9,7 @@ function TableMaster({
   pageSize = 10,
   sortable = false,
   defaultSortKey = null,
-  defaultSortDir = 'asc',
+  defaultSortDir = "asc",
 }) {
   const [currentPage, setCurrentPage] = useState(1);
   const [sortKey, setSortKey] = useState(defaultSortKey);
@@ -17,10 +17,10 @@ function TableMaster({
 
   const handleSort = (key) => {
     if (sortKey === key) {
-      setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
+      setSortDir(sortDir === "asc" ? "desc" : "asc");
     } else {
       setSortKey(key);
-      setSortDir('asc');
+      setSortDir("asc");
     }
   };
 
@@ -31,12 +31,12 @@ function TableMaster({
       const valB = b[sortKey];
       if (valA == null) return 1;
       if (valB == null) return -1;
-      if (typeof valA === 'string') {
-        return sortDir === 'asc'
+      if (typeof valA === "string") {
+        return sortDir === "asc"
           ? valA.localeCompare(valB)
           : valB.localeCompare(valA);
       }
-      return sortDir === 'asc' ? valA - valB : valB - valA;
+      return sortDir === "asc" ? valA - valB : valB - valA;
     });
   }, [data, sortKey, sortDir, sortable]);
 
@@ -50,20 +50,20 @@ function TableMaster({
 
   const sortIndicator = (key) => {
     if (!sortable || key == null) return null;
-    if (sortKey === key) return sortDir === 'asc' ? ' ↑' : ' ↓';
-    return '';
+    if (sortKey === key) return sortDir === "asc" ? " ↑" : " ↓";
+    return "";
   };
 
   return (
     <div className="overflow-x-auto relative">
       <table className="w-full border text-sm">
         <thead>
-          <tr className="bg-gray-100 text-center">
+          <tr className="bg-gray-800 text-center">
             {columns.map((col, i) => (
               <th
                 key={i}
-                className={`p-2 border cursor-pointer select-none ${
-                  col.thClassName || ''
+                className={`p-2 border cursor-pointer select-none text-white ${
+                  col.thClassName || ""
                 }`}
                 onClick={() =>
                   sortable && col.sortable !== false && handleSort(col.key)
@@ -79,10 +79,7 @@ function TableMaster({
         </thead>
         <tbody>
           {pagedData.map((item) => (
-            <tr
-              key={item[keyField]}
-              className="text-center"
-            >
+            <tr key={item[keyField]} className="text-center">
               {renderRow(item)}
             </tr>
           ))}
@@ -97,8 +94,8 @@ function TableMaster({
               onClick={() => setCurrentPage(i + 1)}
               className={`px-3 py-1 rounded ${
                 currentPage === i + 1
-                  ? 'bg-blue-500 text-white'
-                  : 'bg-gray-200 hover:bg-gray-300'
+                  ? "bg-purple-600 text-white"
+                  : "bg-white/10 text-white hover:bg-white/20"
               }`}
             >
               {i + 1}

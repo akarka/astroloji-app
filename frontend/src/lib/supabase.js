@@ -73,6 +73,22 @@ export const birthChartService = {
     }
   },
 
+  // Update calculation
+  async updateCalculation(id, updatedData) {
+    const { data, error } = await supabase
+      .from("calculation_results")
+      .update({ result_json: updatedData })
+      .eq("id", id)
+      .select();
+
+    if (error) {
+      console.error("Error updating calculation:", error);
+      throw error;
+    }
+
+    return data[0];
+  },
+
   // Subscribe to real-time changes
   subscribeToChanges(callback) {
     return supabase
