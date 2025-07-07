@@ -100,4 +100,64 @@ export const birthChartService = {
       )
       .subscribe();
   },
+
+  // Görseli Supabase Storage'a yükle ve calculation_results tablosuna URL kaydet
+  async uploadChartImageAndSaveUrl(calculationId, file) {
+    // Dosya uzantısı
+    const fileExt = file.name.split(".").pop();
+    const fileName = `${calculationId}.${fileExt}`; // UUID ile aynı isim
+    // 1. Storage'a yükle (upsert: true ile overwrite)
+    const { data: uploadData, error: uploadError } = await supabase.storage
+      .from("natalcharts")
+      .upload(fileName, file, {
+        cacheControl: "3600",
+        upsert: true,
+      });
+    if (uploadError) {
+      console.error("Görsel yüklenemedi:", uploadError);
+      throw uploadError;
+    }
+    // 2. Public URL al
+    const { data: publicUrlData } = supabase.storage
+      .from("natalcharts")
+      .getPublicUrl(fileName);
+    const publicUrl = publicUrlData.publicUrl;
+    // 3. Tabloya URL kaydet
+    const { error: updateError } = await supabase
+      .from("calculation_results")
+      .update({ chart_image_url: publicUrl })
+      .eq("id", calculationId);
+    if (updateError) {
+      console.error("Tabloya görsel URL kaydedilemedi:", updateError);
+      throw updateError;
+    }
+    return publicUrl;
+  },
+
+  // Storage'dan görsel sil
+  async deleteChartImageFromStorage(chartImageUrl) {
+    if (!chartImageUrl) return;
+    // chartImageUrl: https://.../natalcharts/uuid.jpg
+    const parts = chartImageUrl.split("/");
+    const fileName = parts[parts.length - 1];
+    const { error } = await supabase.storage
+      .from("natalcharts")
+      .remove([fileName]);
+    if (error) {
+      console.error("Görsel Storage’dan silinemedi:", error);
+      throw error;
+    }
+  },
+
+  // Tablo kaydından chart_image_url alanını temizle
+  async removeChartImageUrl(calculationId) {
+    const { error } = await supabase
+      .from("calculation_results")
+      .update({ chart_image_url: null })
+      .eq("id", calculationId);
+    if (error) {
+      console.error("Tablodan görsel URL silinemedi:", error);
+      throw error;
+    }
+  },
 };

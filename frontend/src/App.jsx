@@ -26,12 +26,244 @@ function App() {
   const [selectedHouse, setSelectedHouse] = useState("");
   const [selectedSign, setSelectedSign] = useState("");
   const [selectedHousePlanet, setSelectedHousePlanet] = useState("");
+  const [chartSVG, setChartSVG] = useState(null);
+  // Elle gezegen ekleme için state
+  const [manualPlanets, setManualPlanets] = useState([]);
+  const [manualPlanetForm, setManualPlanetForm] = useState({
+    name: "",
+    sign: "ARIES",
+    degree: "",
+    minute: "",
+    house: "",
+    longitude: "",
+  });
+  // Elle görsel yükleme için state
+  const [manualChartImage, setManualChartImage] = useState(null);
+  // Harita düzenleme paneli için state
+  const [showChartEdit, setShowChartEdit] = useState(false); // Başlangıçta kapalı
+  // Supabase görsel URL state
+  const [chartImageUrl, setChartImageUrl] = useState(null);
+  // Yükleme durumu
+  const [imageUploading, setImageUploading] = useState(false);
+  // Yükleme hatası
+  const [imageUploadError, setImageUploadError] = useState(null);
+  // Dosya seçimi için state
+  const [pendingChartFile, setPendingChartFile] = useState(null);
+
+  // Elle görsel yükleme handler
+  const handleManualChartImage = (e) => {
+    const file = e.target.files[0];
+    if (file && (file.type === "image/jpeg" || file.type === "image/png")) {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        setManualChartImage(ev.target.result);
+      };
+      reader.readAsDataURL(file);
+    } else {
+      alert("Lütfen JPG veya PNG formatında bir dosya seçin.");
+    }
+  };
+
+  // Elle görseli sil
+  const handleManualChartImageDelete = () => {
+    setManualChartImage(null);
+  };
+
+  // Harita görseli yükle ve Supabase'a kaydet
+  const handleSupabaseChartImage = async (e) => {
+    const file = e.target.files[0];
+    if (!file || !(file.type === "image/jpeg" || file.type === "image/png")) {
+      alert("Lütfen JPG veya PNG formatında bir dosya seçin.");
+      return;
+    }
+    if (!birthChart || !birthChart.id) {
+      alert("Kayıt id bulunamadı. Lütfen önce haritayı kaydedin.");
+      return;
+    }
+    setImageUploading(true);
+    setImageUploadError(null);
+    try {
+      const url = await birthChartService.uploadChartImageAndSaveUrl(
+        birthChart.id,
+        file
+      );
+      setChartImageUrl(url);
+      setManualChartImage(null); // local yüklemeyi sıfırla
+    } catch (err) {
+      setImageUploadError("Görsel yüklenemedi.");
+    } finally {
+      setImageUploading(false);
+    }
+  };
+
+  // Görseli sil (frontend'den) -- eski fonksiyonu kaldırıyorum
+  // const handleChartImageUrlDelete = () => {
+  //   setChartImageUrl(null);
+  // };
+
+  // Dosya seçildiğinde state'e al
+  const handlePendingChartFile = (e) => {
+    const file = e.target.files[0];
+    if (!file || !(file.type === "image/jpeg" || file.type === "image/png")) {
+      alert("Lütfen JPG veya PNG formatında bir dosya seçin.");
+      return;
+    }
+    setPendingChartFile(file);
+  };
+
+  // Kaydet butonu: dosya seçildiyse Supabase'a yükle
+  const handleSaveChartImage = async () => {
+    if (!pendingChartFile) {
+      alert("Lütfen önce bir dosya seçin.");
+      return;
+    }
+    if (!birthChart || !birthChart.id) {
+      alert("Kayıt id bulunamadı. Lütfen önce haritayı kaydedin.");
+      return;
+    }
+    setImageUploading(true);
+    setImageUploadError(null);
+    try {
+      const url = await birthChartService.uploadChartImageAndSaveUrl(
+        birthChart.id,
+        pendingChartFile
+      );
+      setChartImageUrl(url);
+      setManualChartImage(null);
+      setPendingChartFile(null);
+    } catch (err) {
+      setImageUploadError("Görsel yüklenemedi.");
+    } finally {
+      setImageUploading(false);
+    }
+  };
+
+  // Supabase Storage'dan ve tablodan görseli sil
+  const handleChartImageUrlDelete = async () => {
+    if (!birthChart || !birthChart.id || !chartImageUrl) {
+      setChartImageUrl(null);
+      return;
+    }
+    setImageUploading(true);
+    setImageUploadError(null);
+    try {
+      // Storage'dan sil
+      await birthChartService.deleteChartImageFromStorage(chartImageUrl);
+      // Tabloyu güncelle
+      await birthChartService.removeChartImageUrl(birthChart.id);
+      setChartImageUrl(null);
+    } catch (err) {
+      setImageUploadError("Görsel silinemedi.");
+    } finally {
+      setImageUploading(false);
+    }
+  };
+
+  // Otomatik hesapla (SVG'ye dön)
+  const handleAutoChart = () => {
+    setChartImageUrl(null);
+    setShowChartEdit(false);
+  };
+
+  // birthChart değişince chart_image_url state'ini güncelle
+  useEffect(() => {
+    if (birthChart && birthChart.chart_image_url) {
+      setChartImageUrl(birthChart.chart_image_url);
+    } else {
+      setChartImageUrl(null);
+    }
+  }, [birthChart]);
 
   // Load saved calculations on component mount
   useEffect(() => {
     console.log("App component mounted"); // Debug log
     loadSavedCalculations();
   }, []);
+
+  // Elle gezegen ekle
+  const handleManualPlanetAdd = (e) => {
+    e.preventDefault();
+    if (
+      !manualPlanetForm.name ||
+      !manualPlanetForm.sign ||
+      manualPlanetForm.degree === "" ||
+      manualPlanetForm.house === "" ||
+      manualPlanetForm.longitude === ""
+    )
+      return;
+    setManualPlanets((prev) => [...prev, { ...manualPlanetForm }]);
+    setManualPlanetForm({
+      name: "",
+      sign: "ARIES",
+      degree: "",
+      minute: "",
+      house: "",
+      longitude: "",
+    });
+  };
+
+  // Elle gezegen sil
+  const handleManualPlanetDelete = (idx) => {
+    setManualPlanets((prev) => prev.filter((_, i) => i !== idx));
+  };
+
+  // SVG'yi yükle (birthChart değişince)
+  useEffect(() => {
+    const fetchSVG = async () => {
+      if (!birthChart) return;
+      try {
+        const response = await fetch("/api/render-natal-chart-svg", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(birthChart),
+        });
+        if (response.ok) {
+          const svgText = await response.text();
+          setChartSVG(svgText);
+        } else {
+          setChartSVG(null);
+        }
+      } catch (err) {
+        setChartSVG(null);
+      }
+    };
+    fetchSVG();
+  }, [birthChart]);
+
+  // SVG'yi yükle (elle eklenen gezegenler değişince)
+  useEffect(() => {
+    if (manualPlanets.length === 0) return;
+    const fetchSVG = async () => {
+      const svgData = {
+        planet_positions: manualPlanets.map((p) => ({
+          name: p.name,
+          sign: p.sign,
+          degree: Number(p.degree),
+          minute: Number(p.minute) || 0,
+          house: Number(p.house),
+          longitude: Number(p.longitude),
+        })),
+        house_cusps: [], // elle ekleme için şimdilik boş
+        aspects: [], // elle ekleme için şimdilik boş
+      };
+      try {
+        const response = await fetch("/api/render-natal-chart-svg", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(svgData),
+        });
+        if (response.ok) {
+          const svgText = await response.text();
+          setChartSVG(svgText);
+        } else {
+          setChartSVG(null);
+        }
+      } catch (err) {
+        setChartSVG(null);
+      }
+    };
+    fetchSVG();
+  }, [manualPlanets]);
 
   const loadSavedCalculations = async () => {
     try {
@@ -71,17 +303,19 @@ function App() {
 
       const data = await response.json();
       const birthChartData = data.data;
-      setBirthChart(birthChartData);
-
       // Save to Supabase
       const savedRecord = await birthChartService.saveCalculation(
         formData,
         birthChartData
       );
-
+      // id ve chart_image_url'yi state'e ekle
+      setBirthChart({
+        ...birthChartData,
+        id: savedRecord.id,
+        chart_image_url: savedRecord.chart_image_url,
+      });
       // Reload saved calculations
       await loadSavedCalculations();
-
       // Navigate to results page
       setCurrentView("results");
     } catch (error) {
@@ -105,15 +339,21 @@ function App() {
           { house_number: 6, sign: "Libra", degree: 75 },
         ],
       };
-
-      setBirthChart(dummyData);
-
-      // Save dummy data to Supabase
+      // Dummy kaydı da Supabase'a kaydet ve id'yi ekle
       try {
-        await birthChartService.saveCalculation(formData, dummyData);
+        const savedRecord = await birthChartService.saveCalculation(
+          formData,
+          dummyData
+        );
+        setBirthChart({
+          ...dummyData,
+          id: savedRecord.id,
+          chart_image_url: savedRecord.chart_image_url,
+        });
         await loadSavedCalculations();
       } catch (saveError) {
         console.error("Error saving to Supabase:", saveError);
+        setBirthChart(dummyData); // id olmadan fallback
       }
     } finally {
       setLoading(false);
@@ -124,7 +364,12 @@ function App() {
     const resultData = calculation.result_json;
     if (resultData?.person) {
       setFormData(resultData.person);
-      setBirthChart(resultData);
+      // id ve chart_image_url'yi state'e ekle
+      setBirthChart({
+        ...resultData,
+        id: calculation.id,
+        chart_image_url: calculation.chart_image_url,
+      });
       setCurrentView("results");
     } else {
       console.error("Invalid calculation data:", calculation);
@@ -658,14 +903,93 @@ function App() {
           {currentView === "results" && birthChart && (
             /* Results View */
             <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-4 sm:p-6 md:p-8 border border-white/20">
-              {/* Placeholder Chart Görseli */}
-              <div className="flex justify-center mb-6">
-                <img
-                  src="https://www.astro-seek.com/birth-chart/horoscope-chart.png"
-                  alt="Doğum Haritası Placeholder"
-                  className="w-full max-w-xs sm:max-w-md md:max-w-lg rounded-lg shadow-lg border border-white/20 bg-white/10"
-                />
+              {/* Haritayı Düzenle Butonu */}
+              <div className="flex justify-end mb-4">
+                <button
+                  onClick={() => setShowChartEdit((v) => !v)}
+                  className="px-3 py-1 bg-yellow-600 hover:bg-yellow-700 rounded text-white text-sm"
+                >
+                  {showChartEdit ? "Kapat" : "Haritayı Düzenle"}
+                </button>
               </div>
+              {/* Harita Düzenleme Paneli */}
+              {showChartEdit && (
+                <div className="mb-6 flex flex-col items-center bg-white/10 p-4 rounded-lg border border-white/20 w-full max-w-lg mx-auto">
+                  <label className="mb-2 text-white font-semibold">
+                    Doğum Haritası Görseli Yükle (JPG/PNG, Supabase):
+                  </label>
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png"
+                    onChange={handlePendingChartFile}
+                    className="mb-2"
+                    disabled={imageUploading}
+                  />
+                  {pendingChartFile && (
+                    <div className="mb-2 text-green-300 text-sm">
+                      Seçilen dosya: {pendingChartFile.name}
+                    </div>
+                  )}
+                  <div className="flex gap-2 mb-2">
+                    <button
+                      onClick={handleSaveChartImage}
+                      className="px-3 py-1 bg-green-600 hover:bg-green-700 rounded text-white text-sm"
+                      disabled={imageUploading || !pendingChartFile}
+                    >
+                      Kaydet
+                    </button>
+                    <button
+                      onClick={handleChartImageUrlDelete}
+                      className="px-3 py-1 bg-red-600 hover:bg-red-700 rounded text-white text-sm"
+                      disabled={imageUploading || !chartImageUrl}
+                    >
+                      Sil
+                    </button>
+                    <button
+                      onClick={handleAutoChart}
+                      className="px-3 py-1 bg-blue-600 hover:bg-blue-700 rounded text-white text-sm"
+                    >
+                      Otomatik Hesapla
+                    </button>
+                  </div>
+                  {imageUploading && (
+                    <div className="text-yellow-400 mb-2">
+                      İşlem yapılıyor...
+                    </div>
+                  )}
+                  {imageUploadError && (
+                    <div className="text-red-400 mb-2">{imageUploadError}</div>
+                  )}
+                  {chartImageUrl && (
+                    <img
+                      src={chartImageUrl}
+                      alt="Yüklenen Doğum Haritası"
+                      className="w-full max-w-xs sm:max-w-md md:max-w-lg rounded-lg shadow-lg border border-white/20 bg-white/10 mb-2"
+                    />
+                  )}
+                </div>
+              )}
+              {/* SVG veya Yüklenen Görsel */}
+              {!chartImageUrl ? (
+                <div className="flex justify-center mb-6">
+                  {chartSVG ? (
+                    <div
+                      className="w-full max-w-xs sm:max-w-md md:max-w-lg rounded-lg shadow-lg border border-white/20 bg-white/10"
+                      dangerouslySetInnerHTML={{ __html: chartSVG }}
+                    />
+                  ) : (
+                    <div className="text-gray-400">SVG yükleniyor...</div>
+                  )}
+                </div>
+              ) : (
+                <div className="flex justify-center mb-6">
+                  <img
+                    src={chartImageUrl}
+                    alt="Yüklenen Doğum Haritası"
+                    className="w-full max-w-xs sm:max-w-md md:max-w-lg rounded-lg shadow-lg border border-white/20 bg-white/10"
+                  />
+                </div>
+              )}
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 sm:mb-6 gap-4">
                 <h2 className="text-xl sm:text-2xl font-semibold">
                   📊 Doğum Haritası Sonuçları
