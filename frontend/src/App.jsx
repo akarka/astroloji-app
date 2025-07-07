@@ -50,6 +50,12 @@ function App() {
   // Dosya seçimi için state
   const [pendingChartFile, setPendingChartFile] = useState(null);
 
+  // Yeni insan ekle formu için görsel seçimi
+  const [newPersonChartFile, setNewPersonChartFile] = useState(null);
+  const [newPersonImageUploading, setNewPersonImageUploading] = useState(false);
+  const [newPersonImageUploadError, setNewPersonImageUploadError] =
+    useState(null);
+
   // Elle görsel yükleme handler
   const handleManualChartImage = (e) => {
     const file = e.target.files[0];
@@ -211,11 +217,37 @@ function App() {
   useEffect(() => {
     const fetchSVG = async () => {
       if (!birthChart) return;
+      // house_cusps normalize et, eksik longitude'ları doldur
+      let house_cusps = [];
+      if (birthChart.house_cusps && birthChart.house_cusps.length === 12) {
+        house_cusps = birthChart.house_cusps.map((h, i) => ({
+          house: h.house || h.house_number || i + 1,
+          sign: h.sign,
+          degree: h.degree,
+          minute: h.minute || 0,
+          longitude: h.longitude !== undefined ? h.longitude : (i * 30) % 360,
+          label: h.label || undefined,
+        }));
+      } else if (birthChart.houses && birthChart.houses.length === 12) {
+        house_cusps = birthChart.houses.map((h, i) => ({
+          house: h.house || h.house_number || i + 1,
+          sign: h.sign,
+          degree: h.degree,
+          minute: h.minute || 0,
+          longitude: h.longitude !== undefined ? h.longitude : (i * 30) % 360,
+          label: h.label || undefined,
+        }));
+      }
+      const svgData = {
+        ...birthChart,
+        house_cusps,
+        aspects: birthChart.aspects || [],
+      };
       try {
         const response = await fetch("/api/render-natal-chart-svg", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(birthChart),
+          body: JSON.stringify(svgData),
         });
         if (response.ok) {
           const svgText = await response.text();
@@ -276,20 +308,24 @@ function App() {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    console.log("Input changed:", name, value); // Debug log
-    setFormData((prev) => {
-      const newData = {
-        ...prev,
-        [name]: value,
-      };
-      console.log("New formData:", newData); // Debug log
-      return newData;
-    });
+    if (name === "birthDate") {
+      // Sadece rakam ve / karakterine izin ver
+      const formatted = value.replace(/[^0-9/]/g, "");
+      // Otomatik olarak / ekle
+      let auto = formatted;
+      if (auto.length === 2 && formData.birthDate.length === 1) auto += "/";
+      if (auto.length === 5 && formData.birthDate.length === 4) auto += "/";
+      setFormData((prev) => ({ ...prev, [name]: auto }));
+      return;
+    }
+    setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
+    setNewPersonImageUploading(false);
+    setNewPersonImageUploadError(null);
 
     try {
       // Use Vercel API route
@@ -314,6 +350,30 @@ function App() {
         id: savedRecord.id,
         chart_image_url: savedRecord.chart_image_url,
       });
+      // Eğer görsel seçildiyse, yükle
+      if (newPersonChartFile) {
+        setNewPersonImageUploading(true);
+        try {
+          await birthChartService.uploadChartImageAndSaveUrl(
+            savedRecord.id,
+            newPersonChartFile
+          );
+          // Yükleme sonrası güncel kaydı tekrar çek
+          const updatedRecord = await birthChartService.getCalculationById(
+            savedRecord.id
+          );
+          setBirthChart({
+            ...birthChartData,
+            id: updatedRecord.id,
+            chart_image_url: updatedRecord.chart_image_url,
+          });
+        } catch (err) {
+          setNewPersonImageUploadError("Görsel yüklenemedi.");
+        } finally {
+          setNewPersonImageUploading(false);
+          setNewPersonChartFile(null);
+        }
+      }
       // Reload saved calculations
       await loadSavedCalculations();
       // Navigate to results page
@@ -350,6 +410,30 @@ function App() {
           id: savedRecord.id,
           chart_image_url: savedRecord.chart_image_url,
         });
+        // Eğer görsel seçildiyse, yükle
+        if (newPersonChartFile) {
+          setNewPersonImageUploading(true);
+          try {
+            await birthChartService.uploadChartImageAndSaveUrl(
+              savedRecord.id,
+              newPersonChartFile
+            );
+            // Yükleme sonrası güncel kaydı tekrar çek
+            const updatedRecord = await birthChartService.getCalculationById(
+              savedRecord.id
+            );
+            setBirthChart({
+              ...dummyData,
+              id: updatedRecord.id,
+              chart_image_url: updatedRecord.chart_image_url,
+            });
+          } catch (err) {
+            setNewPersonImageUploadError("Görsel yüklenemedi.");
+          } finally {
+            setNewPersonImageUploading(false);
+            setNewPersonChartFile(null);
+          }
+        }
         await loadSavedCalculations();
       } catch (saveError) {
         console.error("Error saving to Supabase:", saveError);
@@ -687,6 +771,17 @@ function App() {
     { key: "actions", label: "İşlemler", sortable: false },
   ];
 
+  // Yeni insan ekle formunda dosya seçimi handler'ı
+  const handleNewPersonChartFile = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (!(file.type === "image/jpeg" || file.type === "image/png")) {
+      alert("Lütfen JPG veya PNG formatında bir dosya seçin.");
+      return;
+    }
+    setNewPersonChartFile(file);
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 text-white">
       <div className="container mx-auto px-4 sm:px-6 py-4 sm:py-8">
@@ -854,10 +949,11 @@ function App() {
 
                     <InputField
                       label="Doğum Tarihi"
-                      type="date"
+                      type="text"
                       name="birthDate"
                       value={formData.birthDate}
                       onChange={handleInputChange}
+                      placeholder="GG/AA/YYYY"
                       inputClassName="bg-white/10 border-white/20 text-white"
                       required
                     />
@@ -882,6 +978,33 @@ function App() {
                       inputClassName="bg-white/10 border-white/20 text-white placeholder-gray-400"
                       required
                     />
+                  </div>
+
+                  {/* Doğum haritası görseli yükleme alanı */}
+                  <div className="flex flex-col items-center mt-2">
+                    <label className="mb-1 text-white font-semibold">
+                      Doğum Haritası Görseli (JPG/PNG):
+                    </label>
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png"
+                      onChange={handleNewPersonChartFile}
+                      className="mb-1"
+                      disabled={newPersonImageUploading}
+                    />
+                    {newPersonChartFile && (
+                      <div className="mb-1 text-green-300 text-sm">
+                        Seçilen dosya: {newPersonChartFile.name}
+                      </div>
+                    )}
+                    {newPersonImageUploading && (
+                      <div className="text-yellow-400 mb-1">Yükleniyor...</div>
+                    )}
+                    {newPersonImageUploadError && (
+                      <div className="text-red-400 mb-1">
+                        {newPersonImageUploadError}
+                      </div>
+                    )}
                   </div>
 
                   <div className="text-center">
