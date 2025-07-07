@@ -56,6 +56,8 @@ function App() {
   const [newPersonImageUploadError, setNewPersonImageUploadError] =
     useState(null);
 
+  const [showBirthday, setShowBirthday] = useState(true);
+
   // Elle görsel yükleme handler
   const handleManualChartImage = (e) => {
     const file = e.target.files[0];
@@ -781,6 +783,59 @@ function App() {
     }
     setNewPersonChartFile(file);
   };
+
+  if (showBirthday) {
+    return (
+      <div
+        style={{
+          minHeight: "100vh",
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "center",
+          alignItems: "center",
+          background: "linear-gradient(135deg, #f8fafc 0%, #fbc2eb 100%)",
+        }}
+      >
+        <div
+          style={{
+            background: "white",
+            borderRadius: 24,
+            boxShadow: "0 8px 32px rgba(0,0,0,0.15)",
+            padding: 48,
+            textAlign: "center",
+            maxWidth: 480,
+          }}
+        >
+          <h1
+            style={{
+              fontSize: 36,
+              fontWeight: 800,
+              color: "#e11d48",
+              marginBottom: 32,
+            }}
+          >
+            DOĞUM GÜNÜN KUTLU OLSUN BEBEĞİM
+          </h1>
+          <button
+            onClick={() => setShowBirthday(false)}
+            style={{
+              fontSize: 32,
+              background: "#f472b6",
+              color: "white",
+              border: "none",
+              borderRadius: 16,
+              padding: "16px 40px",
+              cursor: "pointer",
+              boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+              transition: "background 0.2s",
+            }}
+          >
+            ❤️
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 text-white">
